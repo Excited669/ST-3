@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <stdexcept>
 #include <thread>
 
 #include "TimedDoor.h"
@@ -39,15 +40,15 @@ class DoorController {
     door->unlock();
   }
 
-  bool State(Door* door) {
+  bool GetState(Door* door) {
     return door->isDoorOpened();
   }
 };
 
 class TimedDoorTest : public ::testing::Test {
  protected:
-  TimedDoor* door = nullptr;
-  DoorTimerAdapter* adapter = nullptr;
+  TimedDoor* door;
+  DoorTimerAdapter* adapter;
 
   void SetUp() override {
     door = new TimedDoor(0);
@@ -64,7 +65,7 @@ TEST_F(TimedDoorTest, DoorIsClosedAfterCreation) {
   EXPECT_FALSE(door->isDoorOpened());
 }
 
-TEST_F(TimedDoorTest, TimeoutValueIsStored) {
+TEST(TimedDoorStandaloneTest, TimeoutValueIsStored) {
   TimedDoor localDoor(7);
   EXPECT_EQ(localDoor.getTimeOut(), 7);
 }
@@ -83,9 +84,13 @@ TEST_F(TimedDoorTest, UnlockWithZeroTimeoutThrowsException) {
   EXPECT_THROW(door->unlock(), std::runtime_error);
 }
 
-TEST_F(TimedDoorTest, ThrowStateThrowsForOpenedDoor) {
+TEST_F(TimedDoorTest, DoorRemainsOpenedAfterThrowFromUnlock) {
   EXPECT_THROW(door->unlock(), std::runtime_error);
   EXPECT_TRUE(door->isDoorOpened());
+}
+
+TEST_F(TimedDoorTest, ThrowStateThrowsForOpenedDoor) {
+  EXPECT_THROW(door->unlock(), std::runtime_error);
   EXPECT_THROW(door->throwState(), std::runtime_error);
 }
 
@@ -107,7 +112,7 @@ TEST(TimerTest, RegisterCallsTimeoutForClient) {
   timer.tregister(0, &client);
 }
 
-TEST(MockInterfacesTest, TimerClientMethodIsCalledThroughHelper) {
+TEST(MockTimerClientTest, TimeoutMethodIsCalledThroughHelper) {
   MockTimerClient client;
   TimerClientInvoker invoker;
 
@@ -115,7 +120,7 @@ TEST(MockInterfacesTest, TimerClientMethodIsCalledThroughHelper) {
   invoker.Fire(&client);
 }
 
-TEST(MockInterfacesTest, DoorLockMethodIsCalledThroughHelper) {
+TEST(MockDoorTest, LockMethodIsCalledThroughHelper) {
   MockDoor door;
   DoorController controller;
 
@@ -123,7 +128,7 @@ TEST(MockInterfacesTest, DoorLockMethodIsCalledThroughHelper) {
   controller.Close(&door);
 }
 
-TEST(MockInterfacesTest, DoorUnlockMethodIsCalledThroughHelper) {
+TEST(MockDoorTest, UnlockMethodIsCalledThroughHelper) {
   MockDoor door;
   DoorController controller;
 
@@ -131,12 +136,15 @@ TEST(MockInterfacesTest, DoorUnlockMethodIsCalledThroughHelper) {
   controller.Open(&door);
 }
 
-TEST(MockInterfacesTest, DoorStateMethodIsCalledThroughHelper) {
+TEST(MockDoorTest, StateMethodIsCalledThroughHelper) {
   MockDoor door;
   DoorController controller;
 
-  EXPECT_CALL(door, isDoorOpened()).Times(1).WillOnce(Return(true));
-  EXPECT_TRUE(controller.State(&door));
+  EXPECT_CALL(door, isDoorOpened())
+      .Times(1)
+      .WillOnce(Return(true));
+
+  EXPECT_TRUE(controller.GetState(&door));
 }
 
 TEST(IntegrationTest, ClosingDoorBeforeTimeoutPreventsException) {
